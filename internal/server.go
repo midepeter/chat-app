@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 
 	"firebase.google.com/go/auth"
 	"github.com/gofiber/fiber/v2"
@@ -16,6 +17,9 @@ import (
 
 func StartServer(red *redis.Pool, rr redisReceiver, rw redisWriter) {
 	f := firebase.NewFirestore()
+
+	http_port := os.Getenv("PORT")
+	fmt.Println(http_port)
 
 	ctx := context.Background()
 	engine := html.New("./views", ".html")
@@ -93,7 +97,7 @@ func StartServer(red *redis.Pool, rr redisReceiver, rw redisWriter) {
 
 		c.WriteMessage(websocket.CloseMessage, []byte("Websocket closed"))
 	}))
-	log.Fatal(app.Listen(":9000"))
+	log.Fatal(app.Listen(fmt.Sprintf(":%s", http_port)))
 }
 
 type User struct {
