@@ -109,7 +109,7 @@ func StartServer(red *redis.Pool, rr redisReceiver, rw redisWriter) {
 			switch mt {
 			case websocket.TextMessage:
 				if msdata.Event == "old_messages" {
-					var oldMsgData MsgData
+					//var oldMsgData MsgData
 					doc, err := f.Client.Collection("chat-app").Doc(roomId).Get(context.Background())
 					if err != nil {
 						errors.New("unable to fetch previous room messages")
@@ -117,19 +117,15 @@ func StartServer(red *redis.Pool, rr redisReceiver, rw redisWriter) {
 
 					eleMap := doc.Data()
 
-					var prevmessages []string
-					for i, v := range eleMap {
-						prevmessages = append(prevmessages, v.(string))
-						fmt.Printf("This message sent by %v was %s", i, v)
-					}
-					for _, j := range prevmessages {
-						oldMsgData.Data = j
-						c.WriteMessage(mt, []byte(oldMsgData.Data))
+					for _, j := range eleMap {
+						c.WriteMessage(mt, []byte(j.(string)))
 					}
 				}
 
 				if msdata.Event == "new_messages" {
-					_, err = f.Client.Collection("chat-app").Doc(roomId).Set(ctx, msdata.Data)
+					_, err = f.Client.Collection("chat-app").Doc(roomId).Set(ctx, map[string]string{
+						"msg": msdata.Data,
+					})
 					if err != nil {
 						fmt.Printf("Unable to save message firestore %s", err)
 					}
