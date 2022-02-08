@@ -9,6 +9,7 @@ import (
 	"os"
 	"time"
 
+	"cloud.google.com/go/firestore"
 	"firebase.google.com/go/auth"
 	"github.com/gofiber/fiber/v2"
 	jwtware "github.com/gofiber/jwt/v3"
@@ -25,7 +26,7 @@ type MsgData struct {
 	Data  string
 }
 
-func StartServer(red *redis.Pool, rr redisReceiver, rw redisWriter) {
+func StartServer(red *redis.Pool) {
 	f := firebase.NewFirestore()
 
 	var msdata MsgData
@@ -87,7 +88,16 @@ func StartServer(red *redis.Pool, rr redisReceiver, rw redisWriter) {
 			msg []byte
 			err error
 		)
+
+		rr := NewRedisReceiver(red)
+		rw := NewRedisWriter(red)
+
+		rr.Broadcast([]byte("The waiting message"))
+
 		roomId := c.Params("roomID")
+
+		rr.Run(roomId)
+		rw.Run(roomId)
 
 		rr.Register(c)
 
@@ -109,7 +119,6 @@ func StartServer(red *redis.Pool, rr redisReceiver, rw redisWriter) {
 			switch mt {
 			case websocket.TextMessage:
 				if msdata.Event == "old_messages" {
-					//var oldMsgData MsgData
 					doc, err := f.Client.Collection("chat-app").Doc(roomId).Get(context.Background())
 					if err != nil {
 						errors.New("unable to fetch previous room messages")
@@ -123,17 +132,21 @@ func StartServer(red *redis.Pool, rr redisReceiver, rw redisWriter) {
 				}
 
 				if msdata.Event == "new_messages" {
-					_, err = f.Client.Collection("chat-app").Doc(roomId).Set(ctx, map[string]string{
-						"msg": msdata.Data,
+					_, err = f.Client.Collection("chat-app").Doc(roomId).Update(ctx, []firestore.Update{
+						{
+							Path:  "msg",
+							Value: msdata.Data,
+						},
 					})
 					if err != nil {
 						fmt.Printf("Unable to save message firestore %s", err)
 					}
-
-					rw.Publish([]byte(msdata.Data))
+					rr.Broadcast([]byte(msdata.Data))
+					rw.Publish([]byte(msdata.Data), roomId)
 				}
+
 			default:
-				rw.Publish([]byte("Unknown message"))
+				rw.Publish([]byte("Unknown message"), roomId)
 			}
 		}
 
